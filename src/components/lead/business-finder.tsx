@@ -1129,7 +1129,7 @@ const BusinessFinder: React.FC = () => {
 
       // Process and set product data
       const siteName = getSiteName(url);
-      const productsWithSite = data.products.map(product => ({
+      const productsWithSite = data.products.map((product: any) => ({
         ...product,
         businessName: product.businessName || siteName,
         siteName: siteName
@@ -1686,4 +1686,4 @@ const BusinessFinder: React.FC = () => {
 export default BusinessFinder;
 
 // Define libraries as a constant outside the component to prevent reloading
-const GOOGLE_MAPS_LIBRARIES: ("places" | "drawing" | "geometry" | "localContext" | "visualization")[] = ["places"];
+const GOOGLE_MAPS_LIBRARIES: ("places" | "drawing" | "geometry" | "visualization")[] = ["places"];

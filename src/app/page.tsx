@@ -1,4 +1,7 @@
+'use client';
+
 import BusinessFinder from "@/components/lead/business-finder";
+import ProtectedRoute from "@/components/auth/protected-route";
 
 export default function Home() {
   return (
@@ -14,7 +17,9 @@ export default function Home() {
           </p>
         </div>
 
-        <BusinessFinder />
+        <ProtectedRoute>
+          <BusinessFinder />
+        </ProtectedRoute>
       </div>
 
       <footer className="mt-12 text-center text-sm text-muted-foreground">

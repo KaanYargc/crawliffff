@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorized } from "@/lib/utils";
 
 export async function POST(request: NextRequest) {
+  // Check if user is authenticated
+  const authorized = await isAuthorized(request);
+  if (!authorized) {
+    return NextResponse.json({ 
+      success: false, 
+      message: "Yetkisiz erişim. Lütfen giriş yapın." 
+    }, { status: 401 });
+  }
+
   try {
     // Parse the request body
     const body = await request.json();
