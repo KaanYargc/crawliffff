@@ -1,12 +1,18 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { findUserByEmail, validatePassword, initDb } from '@/lib/db';
+import { findUserByEmail, validatePassword, initNetlifyAuth } from '@/lib/netlify-auth';
 
-// Initialize the database when the auth route is first loaded
+// Veritabanını başlat
 try {
-  initDb();
+  initNetlifyAuth().then(success => {
+    if (success) {
+      console.log('Netlify auth sistemi başarıyla başlatıldı');
+    } else {
+      console.error('Netlify auth sistemi başlatılamadı');
+    }
+  });
 } catch (error) {
-  console.error('Failed to initialize database:', error);
+  console.error('Netlify auth sistemi başlatılırken hata:', error);
 }
 
 const handler = NextAuth({
@@ -22,21 +28,21 @@ const handler = NextAuth({
           return null;
         }
 
-        // Find user by email
-        const user = findUserByEmail(credentials.email);
+        // Email ile kullanıcıyı bul
+        const user = await findUserByEmail(credentials.email);
         
         if (!user || !user.id) {
           return null;
         }
 
-        // Validate password
+        // Şifreyi doğrula
         const isValidPassword = await validatePassword(user, credentials.password);
         
         if (!isValidPassword) {
           return null;
         }
 
-        // Return user object without password
+        // Şifre olmadan kullanıcı nesnesini döndür
         return {
           id: user.id.toString(),
           name: user.name,
@@ -48,7 +54,7 @@ const handler = NextAuth({
   ],
   callbacks: {
     async jwt({ token, user }) {
-      // Add role to JWT token when user signs in
+      // Kullanıcı giriş yaptığında JWT token'a rol ekle
       if (user) {
         token.role = user.role;
         token.id = user.id;
@@ -56,7 +62,7 @@ const handler = NextAuth({
       return token;
     },
     async session({ session, token }) {
-      // Add role to session
+      // Session'a rol ekle
       if (session.user) {
         session.user.role = token.role;
         session.user.id = token.id;

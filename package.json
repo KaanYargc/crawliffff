@@ -15,6 +15,7 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tabs": "^1.1.12",
     "@react-google-maps/api": "^2.20.6",
+    "@supabase/supabase-js": "^2.49.8",
     "axios": "^1.9.0",
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^11.10.0",
