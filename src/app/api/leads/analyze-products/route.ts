@@ -366,67 +366,22 @@ ${html}`;
   }
 }
 
-// Fallback function with direct HTML parsing for timeout situations
+// Fallback function with no regex for timeout situations
 function extractProductsFromHtml(html: string, url: string, domain: string): Product[] {
-  console.log("Using improved fallback extraction...");
+  console.log("Using simple fallback without any regex...");
   
-  try {
-    // URL'den ürün adını çıkarmaya çalış
-    let productName = "";
-    try {
-      const urlParts = url.split('/');
-      const lastPart = urlParts[urlParts.length - 1];
-      
-      // URL'den ürün adını çıkar (özellikle akakce.com için)
-      if (lastPart.includes('.html')) {
-        const namePart = lastPart.split('.html')[0];
-        if (namePart.includes(',')) {
-          const productPart = namePart.split(',')[0];
-          productName = productPart
-            .replace(/-/g, ' ')
-            .split(' ')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
-        }
-      }
-    } catch (e) {
-      console.error("Error extracting product name from URL:", e);
-    }
-    
-    // Eğer URL'den ürün adı çıkarılamazsa, alan adını kullan
-    if (!productName) {
-      productName = `${domain} Ürünü`;
-    }
-    
-    const product: Product = {
-      productName: productName,
-      price: "Zaman aşımı nedeniyle belirlenemedi",
-      rating: "",
-      businessName: domain,
-      description: "Yapay zeka analiz süresi aşıldı. URL ve sayfa başlığından ürün bilgileri çıkarıldı.",
-      reviewCount: "",
-      url: url,
-      imageUrl: ""
-    };
-    
-    console.log("Returning improved fallback product with name from URL");
-    return [product];
-  } catch (error) {
-    console.error("Error in fallback extraction:", error);
-    
-    // Herhangi bir hata durumunda basit yanıt
-    const product: Product = {
-      productName: "API zaman aşımı",
-      price: "",
-      rating: "",
-      businessName: domain,
-      description: "Yapay zeka yanıt vermedi, lütfen daha sonra tekrar deneyin.",
-      reviewCount: "",
-      url: url,
-      imageUrl: ""
-    };
-    
-    console.log("Returning simple fallback product due to error");
-    return [product];
-  }
+  // Basit bir yanıt döndür - regex kullanmadan
+  const product: Product = {
+    productName: `${domain} Ürünü`,
+    price: "Zaman aşımı nedeniyle belirlenemedi",
+    rating: "",
+    businessName: domain,
+    description: "Yapay zeka analiz süresi aşıldı.",
+    reviewCount: "",
+    url: url,
+    imageUrl: ""
+  };
+  
+  console.log("Returning simple fallback product without regex");
+  return [product];
 }
