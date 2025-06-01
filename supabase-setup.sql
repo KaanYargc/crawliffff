@@ -17,6 +17,10 @@ BEGIN
       email TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'user',
+      package TEXT NOT NULL DEFAULT 'free',
+      first_login BOOLEAN NOT NULL DEFAULT true,
+      package_start_date TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      package_end_date TIMESTAMP WITH TIME ZONE DEFAULT null,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
     );
 

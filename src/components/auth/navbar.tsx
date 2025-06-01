@@ -15,54 +15,78 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="border-b border-gray-200 bg-white py-4">
-      <div className="container mx-auto flex items-center justify-between px-4">
-        <div>
-          <Link href="/" className="text-xl font-bold">
+    <nav className="fixed top-0 z-50 w-full border-b border-zinc-200 bg-white/90 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/90">
+      <div className="container px-4 md:px-6 max-w-6xl mx-auto">
+        <div className="flex h-16 items-center justify-between">
+          <Link 
+            href="/" 
+            className="flex items-center gap-2 text-xl font-semibold text-zinc-900 dark:text-zinc-50"
+          >
             Crawlify
           </Link>
-        </div>
 
-        <div className="flex items-center space-x-4">
-          {status === 'authenticated' ? (
-            <>
-              <span className="text-sm text-gray-700">
-                {isAdmin ? (
-                  <span className="inline-flex items-center">
-                    <span className="mr-2">{session.user?.name}</span>
-                    <span className="rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-800">
-                      Admin
+          <div className="flex items-center gap-4">
+            {status === 'authenticated' ? (
+              <>
+                <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                  {isAdmin ? (
+                    <span className="flex items-center gap-2">
+                      <span>{session.user?.name}</span>
+                      <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-800 ring-1 ring-inset ring-zinc-600/10 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700">
+                        Admin
+                      </span>
                     </span>
-                  </span>
-                ) : (
-                  <span>{session.user?.name}</span>
-                )}
-              </span>
-              
-              {isAdmin && (
-                <Link href="/admin" passHref>
-                  <Button variant="secondary" size="sm">
-                    Admin Panel
+                  ) : (
+                    <span>{session.user?.name}</span>
+                  )}
+                </span>
+                
+                {isAdmin && (
+                  <Button 
+                    asChild 
+                    variant="ghost" 
+                    size="sm"
+                    className="h-9"
+                  >
+                    <Link href="/admin">
+                      Admin Panel
+                    </Link>
                   </Button>
-                </Link>
-              )}
-              
-              <Button variant="outline" size="sm" onClick={handleSignOut}>
-                Çıkış Yap
-              </Button>
-            </>
-          ) : (
-            <>
-              <Link href="/login" passHref>
-                <Button variant="outline" size="sm">
-                  Giriş Yap
+                )}
+                
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleSignOut}
+                  className="h-9"
+                >
+                  Çıkış Yap
                 </Button>
-              </Link>
-              <Link href="/register" passHref>
-                <Button size="sm">Kayıt Ol</Button>
-              </Link>
-            </>
-          )}
+              </>
+            ) : (
+              <>
+                <Button 
+                  asChild 
+                  variant="ghost" 
+                  size="sm"
+                  className="h-9"
+                >
+                  <Link href="/login">
+                    Giriş Yap
+                  </Link>
+                </Button>
+                <Button 
+                  asChild 
+                  size="sm"
+                  className="h-9 bg-zinc-900 text-white hover:bg-zinc-800"
+                >
+                  <Link href="/register">
+                    Kayıt Ol
+                  </Link>
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </nav>

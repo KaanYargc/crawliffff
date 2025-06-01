@@ -5,12 +5,13 @@ import { getToken } from 'next-auth/jwt';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // Skip authentication for login, register, and public API routes
+  // Skip authentication for login, register, public API routes, and home page
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth') ||
     pathname === '/login' ||
-    pathname === '/register'
+    pathname === '/register' ||
+    pathname === '/' // Allow home page to be accessed without authentication
   ) {
     return NextResponse.next();
   }

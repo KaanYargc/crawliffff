@@ -10,95 +10,114 @@ interface User {
   email: string;
   password: string;
   role: string;
+  package?: string;
+  first_login?: boolean;
   created_at?: string;
 }
 
-// Database path
-const dbPath = join(process.cwd(), 'data', 'crawlify.db');
+class DB {
+  private static instance: Database.Database | null = null;
+  private static dbPath = join(process.cwd(), 'data', 'crawlify.db');
 
-// Ensure data directory exists
-const dataDir = join(process.cwd(), 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
+  static getInstance(): Database.Database {
+    if (!this.instance) {
+      // Ensure data directory exists
+      const dataDir = join(process.cwd(), 'data');
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
 
-// Initialize database connection
-export function getDb() {
-  return new Database(dbPath);
-}
+      this.instance = new Database(this.dbPath);
+    }
+    return this.instance;
+  }
 
-// Initialize database tables
-export function initDb() {
-  const db = getDb();
-  
-  // Create users table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'user',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  static init() {
+    const db = this.getInstance();
+    
+    // Create users table with new package-related fields
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        package TEXT NOT NULL DEFAULT 'free',
+        first_login BOOLEAN NOT NULL DEFAULT true,
+        package_start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        package_end_date TIMESTAMP DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Check if admin user exists, if not create one
+    const adminUser = db.prepare('SELECT * FROM users WHERE role = ?').get('admin');
+    
+    if (!adminUser) {
+      // Create default admin user
+      const hashedPassword = this.hashPassword('admin123');
+      db.prepare(
+        'INSERT INTO users (name, email, password, role, first_login) VALUES (?, ?, ?, ?, ?)'
+      ).run('Admin', 'admin@crawlify.com', hashedPassword, 'admin', false);
+      console.log('Default admin user created');
+    }
+
+    console.log('Database initialized');
+  }
+
+  static async get(query: string, params?: any[]): Promise<any> {
+    const db = this.getInstance();
+    return db.prepare(query).get(...(params || []));
+  }
+
+  static async all(query: string, params?: any[]): Promise<any[]> {
+    const db = this.getInstance();
+    return db.prepare(query).all(...(params || []));
+  }
+
+  static async run(query: string, params?: any[]): Promise<Database.RunResult> {
+    const db = this.getInstance();
+    return db.prepare(query).run(...(params || []));
+  }
+
+  static close() {
+    if (this.instance) {
+      this.instance.close();
+      this.instance = null;
+    }
+  }
+
+  private static hashPassword(password: string): string {
+    return require('bcrypt').hashSync(password, 10);
+  }
+
+  static async createUser(name: string, email: string, password: string): Promise<User | null> {
+    // Check if user already exists
+    const existingUser = await this.get('SELECT * FROM users WHERE email = ?', [email]);
+    if (existingUser) {
+      return null;
+    }
+    
+    // Hash password
+    const hashedPassword = await hash(password, 10);
+    
+    // Create user
+    const info = await this.run(
+      'INSERT INTO users (name, email, password, role, package, first_login) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, email, hashedPassword, 'user', 'free', true]
     );
-  `);
-
-  // Check if admin user exists, if not create one
-  const adminUser = db.prepare('SELECT * FROM users WHERE role = ?').get('admin');
-  
-  if (!adminUser) {
-    // Create default admin user
-    const hashedPassword = hashPassword('admin123');
-    db.prepare(
-      'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)'
-    ).run('Admin', 'admin@crawlify.com', hashedPassword, 'admin');
-    console.log('Default admin user created');
+    
+    return this.get('SELECT * FROM users WHERE id = ?', [info.lastInsertRowid]);
   }
 
-  db.close();
-  console.log('Database initialized');
-}
-
-// Helper function to hash passwords synchronously
-function hashPassword(password: string): string {
-  // Using a sync version for simplicity in initialization
-  return require('bcrypt').hashSync(password, 10);
-}
-
-// User authentication methods
-export function findUserByEmail(email: string): User | undefined {
-  const db = getDb();
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as User | undefined;
-  db.close();
-  return user;
-}
-
-export async function createUser(name: string, email: string, password: string): Promise<User | null> {
-  const db = getDb();
-  
-  // Check if user already exists
-  const existingUser = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-  if (existingUser) {
-    db.close();
-    return null;
+  static async validatePassword(user: User, password: string): Promise<boolean> {
+    return await compare(password, user.password);
   }
-  
-  // Hash password
-  const hashedPassword = await hash(password, 10);
-  
-  // Create user
-  const stmt = db.prepare(
-    'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)'
-  );
-  
-  const info = stmt.run(name, email, hashedPassword, 'user');
-  
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid) as User;
-  db.close();
-  
-  return user;
+
+  static async findUserByEmail(email: string): Promise<User | undefined> {
+    return this.get('SELECT * FROM users WHERE email = ?', [email]);
+  }
 }
 
-export async function validatePassword(user: User, password: string): Promise<boolean> {
-  return await compare(password, user.password);
-}
+export default DB;

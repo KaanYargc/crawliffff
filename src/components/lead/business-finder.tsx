@@ -1454,6 +1454,24 @@ const BusinessFinder: React.FC = () => {
                   </Button>
                 </div>
                 
+                <div className="flex items-center space-x-4">
+                  <div className="flex-1">
+                    <label htmlFor="radius-slider" className="block text-sm font-medium mb-1">
+                      Arama Yarıçapı: {searchRadius} km
+                    </label>
+                    <input
+                      id="radius-slider"
+                      type="range"
+                      min="1"
+                      max="50"
+                      step="1"
+                      value={searchRadius}
+                      onChange={(e) => setSearchRadius(parseInt(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+                </div>
+                
                 {status && (
                   <div className="mt-4 p-3 bg-muted rounded-md text-sm">
                     <p>{status}</p>
@@ -1653,20 +1671,20 @@ const BusinessFinder: React.FC = () => {
                             </td>
                             <td className="px-4 py-2 text-sm font-medium text-gray-900 max-w-[200px] truncate">
                               <a href={product.url} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600">
-                                {product.productName || "Ürün adı bulunamadı"}
+                                {product.productName}
                               </a>
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-500">
-                              {product.price || "Fiyat bilgisi yok"}
+                              {product.price}
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-500 max-w-[150px] truncate">
-                              {product.businessName || "İşletme bilgisi yok"}
+                              {product.businessName}
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-500">
-                              {product.rating || "Puan bilgisi yok"}
+                              {product.rating}
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-500">
-                              {product.reviewCount || "İnceleme bilgisi yok"}
+                              {product.reviewCount || "N/A"}
                             </td>
                           </tr>
                         ))}

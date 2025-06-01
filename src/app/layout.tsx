@@ -4,12 +4,11 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import AuthProvider from "@/components/auth/auth-provider";
 import Navbar from "@/components/auth/navbar";
-// Import but don't immediately call - Next.js will handle initialization
-import initDatabase from "@/lib/init-db";
+import DB from "@/lib/db";
 
-// Initialize the database during server startup, but only on the server
+// Initialize database on server side
 if (typeof window === 'undefined') {
-  initDatabase().catch(console.error);
+  DB.init();
 }
 
 const geistSans = Geist({
@@ -33,14 +32,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="tr">
+    <html lang="tr" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
         <AuthProvider>
-          <Navbar />
-          <main>{children}</main>
-          <Toaster />
+          <div className="relative min-h-screen flex flex-col">
+            <Navbar />
+            <main className="flex-1 pt-16">{children}</main>
+            <Toaster />
+          </div>
         </AuthProvider>
       </body>
     </html>

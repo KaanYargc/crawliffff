@@ -1,19 +1,10 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { findUserByEmail, validatePassword, initNetlifyAuth } from '@/lib/netlify-auth';
+import { compare } from 'bcryptjs';
+import DB from '@/lib/db';
 
-// Veritabanını başlat
-try {
-  initNetlifyAuth().then(success => {
-    if (success) {
-      console.log('Netlify auth sistemi başarıyla başlatıldı');
-    } else {
-      console.error('Netlify auth sistemi başlatılamadı');
-    }
-  });
-} catch (error) {
-  console.error('Netlify auth sistemi başlatılırken hata:', error);
-}
+// Initialize database
+DB.init();
 
 const handler = NextAuth({
   providers: [
@@ -25,47 +16,54 @@ const handler = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          return null;
+          throw new Error('Email ve şifre gerekli');
         }
 
-        // Email ile kullanıcıyı bul
-        const user = await findUserByEmail(credentials.email);
-        
-        if (!user || !user.id) {
-          return null;
+        const user = await DB.get(
+          "SELECT * FROM users WHERE email = ?",
+          [credentials.email]
+        );
+
+        if (!user) {
+          throw new Error('Kullanıcı bulunamadı');
         }
 
-        // Şifreyi doğrula
-        const isValidPassword = await validatePassword(user, credentials.password);
-        
-        if (!isValidPassword) {
-          return null;
+        const isPasswordValid = await compare(
+          credentials.password,
+          user.password
+        );
+
+        if (!isPasswordValid) {
+          throw new Error('Geçersiz şifre');
         }
 
-        // Şifre olmadan kullanıcı nesnesini döndür
         return {
-          id: user.id.toString(),
+          id: user.id,
           name: user.name,
           email: user.email,
-          role: user.role
+          role: user.role,
+          package: user.package,
+          first_login: user.first_login
         };
       }
     })
   ],
   callbacks: {
     async jwt({ token, user }) {
-      // Kullanıcı giriş yaptığında JWT token'a rol ekle
       if (user) {
         token.role = user.role;
         token.id = user.id;
+        token.package = user.package;
+        token.first_login = user.first_login;
       }
       return token;
     },
     async session({ session, token }) {
-      // Session'a rol ekle
-      if (session.user) {
-        session.user.role = token.role;
-        session.user.id = token.id;
+      if (token && session.user) {
+        session.user.role = token.role as string;
+        session.user.id = token.id as string;
+        session.user.package = token.package as string;
+        session.user.first_login = token.first_login as boolean;
       }
       return session;
     }

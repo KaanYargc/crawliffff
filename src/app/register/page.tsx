@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card } from '@/components/ui/card';
+import { Card, CardHeader, CardContent, CardDescription, CardTitle, CardFooter } from '@/components/ui/card';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
@@ -56,88 +56,114 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12">
-      <Card className="w-full max-w-md p-8">
-        <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold">Crawlify&apos;e Kayıt Olun</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Yeni bir hesap oluşturun
-          </p>
-        </div>
+    <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-gradient-to-b from-white to-gray-50/50 dark:from-background dark:to-background/50">
+      <Link 
+        href="/" 
+        className="text-lg font-semibold text-indigo-500 hover:text-indigo-600 transition-colors mb-8"
+      >
+        Crawlify
+      </Link>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Ad Soyad</Label>
-            <Input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ad Soyad"
-              required
+      <Card className="w-full max-w-sm border-0 shadow-lg">
+        <CardHeader className="space-y-1 text-center">
+          <CardTitle className="text-2xl font-semibold tracking-tight">
+            Hesap Oluşturun
+          </CardTitle>
+          <CardDescription>
+            Crawlify'a üye olarak hemen başlayın
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-sm font-medium">
+                Ad Soyad
+              </Label>
+              <Input
+                id="name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="John Doe"
+                required
+                disabled={isLoading}
+                className="h-10"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-sm font-medium">
+                Email
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="ornek@email.com"
+                required
+                disabled={isLoading}
+                className="h-10"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-sm font-medium">
+                Şifre
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                disabled={isLoading}
+                minLength={6}
+                className="h-10"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword" className="text-sm font-medium">
+                Şifre Tekrar
+              </Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                disabled={isLoading}
+                minLength={6}
+                className="h-10"
+              />
+            </div>
+
+            <Button
+              type="submit"
               disabled={isLoading}
-            />
-          </div>
+              className="w-full h-10 bg-zinc-900 text-white hover:bg-zinc-800"
+            >
+              {isLoading ? 'Kayıt yapılıyor...' : 'Kayıt Ol'}
+            </Button>
+          </form>
+        </CardContent>
 
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="email@example.com"
-              required
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password">Şifre</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="********"
-              required
-              disabled={isLoading}
-              minLength={6}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Şifre Tekrar</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="********"
-              required
-              disabled={isLoading}
-              minLength={6}
-            />
-          </div>
-
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={isLoading}
-          >
-            {isLoading ? 'Kayıt yapılıyor...' : 'Kayıt Ol'}
-          </Button>
-        </form>
-
-        <div className="mt-6 text-center text-sm">
-          <p>
+        <CardFooter className="flex flex-col space-y-4 text-center">
+          <div className="text-sm text-muted-foreground">
             Zaten hesabınız var mı?{' '}
-            <Link href="/login" className="font-medium text-blue-600 hover:underline">
-              Giriş Yap
+            <Link 
+              href="/login"
+              className="text-indigo-500 hover:text-indigo-600 font-medium transition-colors"
+            >
+              Giriş Yapın
             </Link>
-          </p>
-        </div>
+          </div>
+        </CardFooter>
       </Card>
-    </div>
+    </main>
   );
 }
