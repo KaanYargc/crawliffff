@@ -10,6 +10,7 @@ interface ApiError extends Error {
     statusText: string;
     data: any;
   };
+  code?: string;
 }
 
 // Define product interface
@@ -23,6 +24,10 @@ interface Product {
   url: string;
   imageUrl: string;
 }
+
+// Simple in-memory cache
+const responseCache = new Map<string, {timestamp: number, products: Product[]}>();
+const CACHE_TTL = 3600000; // 1 hour in milliseconds
 
 export async function POST(req: NextRequest) {
   // Check if user is authenticated
@@ -40,6 +45,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
+    // Check cache
+    const cacheKey = url;
+    const cachedResponse = responseCache.get(cacheKey);
+    
+    // Use cache if valid
+    if (cachedResponse && (Date.now() - cachedResponse.timestamp < CACHE_TTL)) {
+      console.log(`Cache hit for URL: ${url}, returning cached result from ${new Date(cachedResponse.timestamp).toISOString()}`);
+      
+      return NextResponse.json({ 
+        products: cachedResponse.products,
+        fromCache: true,
+        cachedAt: new Date(cachedResponse.timestamp).toISOString()
+      });
+    }
+    
+    console.log(`Cache miss for URL: ${url}, fetching new data...`);
+
     // Extract domain for context
     let domain = '';
     try {
@@ -51,8 +73,14 @@ export async function POST(req: NextRequest) {
     console.log(`Starting analysis for: ${domain}`);
     
     try {
-      // Fetch website content and analyze in parallel
+      // Timing measurement
+      const startTime = Date.now();
+      
+      // Fetch website content
+      console.log(`[${new Date().toISOString()}] Fetching website content...`);
       const websiteContent = await fetchWebsiteContent(url);
+      const fetchTime = Date.now() - startTime;
+      console.log(`[${new Date().toISOString()}] Website content fetched in ${fetchTime}ms, size: ${websiteContent.length} bytes`);
       
       if (!websiteContent) {
         return NextResponse.json({ 
@@ -60,9 +88,51 @@ export async function POST(req: NextRequest) {
         }, { status: 500 });
       }
       
-      // Analyze content with reduced HTML size
-      const products = await analyzeWithGemini(websiteContent, url, domain);
-      return NextResponse.json({ products });
+      // Analyze with Gemini - use chunking for large content
+      console.log(`[${new Date().toISOString()}] Starting Gemini analysis...`);
+      const analysisStartTime = Date.now();
+      
+      // Extract product sections first to reduce content size
+      const extractedContent = extractRelevantContent(websiteContent);
+      console.log(`Extracted content size: ${extractedContent.length} bytes (reduced by ${Math.round((1 - extractedContent.length / websiteContent.length) * 100)}%)`);
+      
+      // Analyze the extracted content
+      const products = await analyzeWithGemini(extractedContent, url, domain);
+      
+      const analysisTime = Date.now() - analysisStartTime;
+      const totalTime = Date.now() - startTime;
+      
+      console.log(`[${new Date().toISOString()}] Gemini analysis completed in ${analysisTime}ms`);
+      console.log(`Total processing time: ${totalTime}ms`);
+      
+      // Debug: Log the products response
+      console.log("=== AI ANALYSIS RESULT ===");
+      console.log(JSON.stringify(products, null, 2));
+      console.log("=== END OF AI ANALYSIS ===");
+      
+      // Cache the result
+      responseCache.set(cacheKey, {
+        timestamp: Date.now(),
+        products: products
+      });
+      
+      // Create a formatted table for console output
+      if (products && products.length > 0) {
+        console.log("\nFormatted Table Output:");
+        console.log("Görsel\tÜrün Adı\tFiyat\tİşletme\tPuan\tİnceleme Sayısı");
+        products.forEach(product => {
+          console.log(`${product.imageUrl ? 'Var' : 'Görsel yok'}\t${product.productName || 'N/A'}\t${product.price || 'N/A'}\t${product.businessName || 'N/A'}\t${product.rating || 'N/A'}\t${product.reviewCount || 'N/A'}`);
+        });
+      }
+      
+      return NextResponse.json({ 
+        products,
+        timing: {
+          fetchTime,
+          analysisTime,
+          totalTime
+        }
+      });
     } catch (error) {
       console.error("Error in analysis process:", error);
       
@@ -72,15 +142,21 @@ export async function POST(req: NextRequest) {
         price: "Bulunamadı",
         rating: "",
         businessName: domain,
-        description: "İçerik işleme hatası. Lütfen daha sonra tekrar deneyin.",
+        description: `Analiz hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
         reviewCount: "",
         url: url,
         imageUrl: ""
       }];
       
+      // Log the fallback product
+      console.log("=== FALLBACK RESULT ===");
+      console.log("Görsel\tÜrün Adı\tFiyat\tİşletme\tPuan\tİnceleme Sayısı");
+      console.log(`Görsel yok\t${fallbackProducts[0].productName}\t${fallbackProducts[0].price}\t${domain}\t\tN/A`);
+      
       return NextResponse.json({ 
         products: fallbackProducts,
-        error: "API analiz hatası"
+        error: "API analiz hatası",
+        errorDetails: error instanceof Error ? error.message : "Unknown error"
       });
     }
   } catch (error) {
@@ -126,6 +202,31 @@ async function fetchWebsiteContent(url: string): Promise<string> {
   }
 }
 
+// Function to extract only relevant parts of HTML to reduce size
+function extractRelevantContent(html: string): string {
+  // Max size for HTML to send to API - increased to capture more content including recommended products
+  const MAX_SIZE = 50000;
+  
+  // First, try to extract just the body content
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  if (bodyMatch && bodyMatch[1]) {
+    const bodyContent = bodyMatch[1];
+    console.log(`Extracted body content: ${bodyContent.length} bytes`);
+    
+    // Boyut limiti daha yüksek - daha fazla içerik göndermek için
+    if (bodyContent.length > MAX_SIZE) {
+      console.log(`Body content too large, extracting first ${MAX_SIZE} bytes`);
+      return bodyContent.substring(0, MAX_SIZE);
+    } else {
+      return bodyContent;
+    }
+  }
+  
+  // Body bulunamazsa, orijinal HTML'in başlangıç kısmını kullan
+  console.log(`Could not find body tag, using original HTML`);
+  return html.substring(0, MAX_SIZE);
+}
+
 // Optimized Gemini analysis function
 async function analyzeWithGemini(html: string, url: string, domain: string): Promise<Product[]> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -134,155 +235,198 @@ async function analyzeWithGemini(html: string, url: string, domain: string): Pro
     throw new Error('GEMINI_API_KEY is not defined');
   }
   
-  // Extract important parts to reduce content size drastically
-  const extractedContent = extractRelevantContent(html);
-  
-  // Empty product response
-  const emptyProductResponse: Product[] = [{
-    productName: "Ürün bulunamadı",
-    price: "",
-    rating: "",
-    businessName: domain,
-    description: "Bu sayfada herhangi bir ürün tespit edilemedi.",
-    reviewCount: "",
-    url: url,
-    imageUrl: ""
-  }];
-  
   try {
-    // Simplified prompt
+    // Comprehensive prompt to extract all products including recommended ones
     const prompt = `
-Sayfadaki ürünleri JSON formatında döndür:
+Bu e-ticaret sayfasındaki TÜM ürünleri analiz et ve bilgilerini çıkart.
+
+Bu bir ${domain} sayfasıdır.
+
+ANA ÜRÜN ve "Benzer Ürünler", "Bunlar da İlginizi Çekebilir", "Önerilen Ürünler", "Bu Ürünü Alanlar Bunu da Aldı" gibi bölümlerdeki TÜM ürünleri ayrı ayrı listele.
+
+Lütfen aşağıdaki JSON formatında cevap ver:
 [
   {
-    "productName": "Ürün adı",
-    "price": "Fiyat",
-    "rating": "Puan",
+    "productName": "Ürünün tam adı",
+    "price": "Ürünün fiyatı (TL, ₺, $ vb. ile birlikte)",
+    "rating": "Ürün değerlendirme puanı (5 üzerinden)",
     "businessName": "${domain}",
-    "description": "Açıklama",
-    "reviewCount": "Değerlendirme sayısı",
-    "url": "${url}",
-    "imageUrl": "Resim URL"
-  }
+    "description": "Ürünün kısa açıklaması veya özellikleri",
+    "reviewCount": "Değerlendirme/yorum sayısı",
+    "url": "Ürünün tam URL'si (veya ana ürün için: ${url})",
+    "imageUrl": "Ürün resminin URL'si",
+    "isMainProduct": "(true/false) Ana ürün mü yoksa önerilen/benzer ürün mü"
+  },
+  {
+    // İkinci ürün
+  },
+  // vb. sayfadaki tüm ürünler için
 ]
-Kurallar:
-1. Sadece JSON döndür
-2. Ürün bulamazsan boş dizi döndür: []
 
-HTML:
-${extractedContent}`;
+ÖNEMLİ: Sayfada bulunan TÜM ürünleri listele, hiçbir ürünü atlama. 
+Her bir ürün için yukarıdaki tüm alanları doldurmaya çalış.
+Ürün açıklaması ve özelliklerini kısa tut (1-2 cümle).
+Fiyat bilgisini tam olarak bul (indirimli fiyat varsa onu kullan).
+Ürün puanını 5 üzerinden değerlendirme şeklinde ver.
+Ürün URL'si yoksa, yalnızca ana ürün için mevcut URL'yi kullan.
 
-    // Request payload with smaller content
+Aşağıdaki HTML içeriğini analiz et:
+${html}`;
+
+    // Request payload - simplified to minimize processing time
     const requestPayload = {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 4096,
+        temperature: 0,
+        maxOutputTokens: 2048,
         responseMimeType: "application/json"
       }
     };
     
-    // Use flash model
+    // Use the Gemini 1.5 Flash model
     const model = "gemini-1.5-flash";
     
-    console.log(`Calling Gemini API...`);
-    const response = await axios({
-      method: 'post',
-      url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      data: requestPayload,
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 8000 // Reduced timeout for Netlify
-    });
-    
-    if (!response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-      return emptyProductResponse;
-    }
-    
-    const responseText = response.data.candidates[0].content.parts[0].text.trim();
-    
-    // Handle empty array
-    if (responseText === '[]' || responseText === '[ ]') {
-      return emptyProductResponse;
-    }
+    console.log(`[${new Date().toISOString()}] Calling Gemini API with HTML size: ${html.length} bytes...`);
     
     try {
-      // Try to repair and parse JSON
-      const repairedJson = jsonrepair(responseText);
-      const parsedProducts = JSON.parse(repairedJson);
+      // Use a shorter timeout
+      const response = await axios({
+        method: 'post',
+        url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        data: requestPayload,
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 25000 // 25 seconds timeout for complex pages
+      });
       
-      if (Array.isArray(parsedProducts) && parsedProducts.length > 0) {
-        return parsedProducts;
+      console.log(`[${new Date().toISOString()}] Gemini API responded with status: ${response.status}`);
+      
+      if (!response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        console.error("Invalid API response structure:", JSON.stringify(response.data, null, 2));
+        // Boş ürün dizisi döndür
+        return [];
       }
       
-      return emptyProductResponse;
-    } catch (error) {
-      console.error("JSON parsing error:", error);
-      return emptyProductResponse;
+      const responseText = response.data.candidates[0].content.parts[0].text.trim();
+      
+      // Handle empty array - doğrudan boş dizi döndür
+      if (responseText === '[]' || responseText === '[ ]') {
+        console.log("API returned empty array, no products found");
+        return [];
+      }
+      
+      try {
+        // Try to repair and parse JSON
+        const repairedJson = jsonrepair(responseText);
+        const parsedProducts = JSON.parse(repairedJson);
+        
+        if (Array.isArray(parsedProducts)) {
+          console.log(`Successfully parsed ${parsedProducts.length} products from API response`);
+          return parsedProducts;
+        }
+        
+        console.log("No products found in parsed response");
+        // Boş dizi döndür
+        return [];
+      } catch (error) {
+        console.error("JSON parsing error:", error);
+        console.error("Response text:", responseText.substring(0, 200) + "...");
+        
+        // JSON parse edilemezse, ham metni ürün olarak döndür
+        return [{
+          productName: "Yapay Zeka Ham Çıktısı",
+          price: "",
+          rating: "",
+          businessName: domain,
+          description: responseText.substring(0, 500), // İlk 500 karakteri açıklama olarak kullan
+          reviewCount: "",
+          url: url,
+          imageUrl: ""
+        }];
+      }
+    } catch (apiError) {
+      const error = apiError as ApiError;
+      console.error("Gemini API request failed:", error.message);
+      
+      // For timeout errors, try fallback extraction
+      if (error.code === 'ECONNABORTED') {
+        console.log("API timeout - attempting to extract product information directly from HTML...");
+        return extractProductsFromHtml(html, url, domain);
+      }
+      
+      if (error.response) {
+        console.error("API Error Status:", error.response.status);
+        console.error("API Error Data:", JSON.stringify(error.response.data || {}, null, 2));
+      }
+      
+      throw new Error(`Gemini API error: ${error.message}`);
     }
   } catch (error) {
-    console.error("Gemini API error:", error);
-    return [{
-      productName: "API Bağlantı Hatası",
-      price: "",
-      rating: "",
-      businessName: domain,
-      description: "Gemini API'ye bağlanırken bir hata oluştu.",
-      reviewCount: "",
-      url: url,
-      imageUrl: ""
-    }];
+    console.error("Error in Gemini processing:", error);
+    throw error;
   }
 }
 
-// Function to extract only relevant parts of HTML to reduce size
-function extractRelevantContent(html: string): string {
-  // Max size for HTML to send to API
-  const MAX_SIZE = 30000;
+// Fallback function with direct HTML parsing for timeout situations
+function extractProductsFromHtml(html: string, url: string, domain: string): Product[] {
+  console.log("Using improved fallback extraction...");
   
-  if (html.length <= MAX_SIZE) {
-    return html;
-  }
-  
-  // First try to extract product sections
-  let extractedContent = '';
-  
-  // Common product section patterns
-  const productPatterns = [
-    /<div[^>]*class="[^"]*product[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-    /<div[^>]*class="[^"]*item[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-    /<article[^>]*>[\s\S]*?<\/article>/gi,
-    /<div[^>]*id="[^"]*product[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-    /<li[^>]*class="[^"]*product[^"]*"[^>]*>[\s\S]*?<\/li>/gi
-  ];
-  
-  // Try each pattern
-  for (const pattern of productPatterns) {
-    const matches = html.match(pattern);
-    if (matches && matches.length > 0) {
-      extractedContent = matches.join('\n').substring(0, MAX_SIZE);
-      if (extractedContent.length > 1000) {
-        return extractedContent;
+  try {
+    // URL'den ürün adını çıkarmaya çalış
+    let productName = "";
+    try {
+      const urlParts = url.split('/');
+      const lastPart = urlParts[urlParts.length - 1];
+      
+      // URL'den ürün adını çıkar (özellikle akakce.com için)
+      if (lastPart.includes('.html')) {
+        const namePart = lastPart.split('.html')[0];
+        if (namePart.includes(',')) {
+          const productPart = namePart.split(',')[0];
+          productName = productPart
+            .replace(/-/g, ' ')
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+        }
       }
+    } catch (e) {
+      console.error("Error extracting product name from URL:", e);
     }
-  }
-  
-  // If no product sections found, extract main content
-  const mainContentPatterns = [
-    /<main[^>]*>[\s\S]*?<\/main>/i,
-    /<div[^>]*id="content"[^>]*>[\s\S]*?<\/div>/i,
-    /<div[^>]*class="[^"]*content[^"]*"[^>]*>[\s\S]*?<\/div>/i,
-    /<div[^>]*id="main"[^>]*>[\s\S]*?<\/div>/i
-  ];
-  
-  for (const pattern of mainContentPatterns) {
-    const match = html.match(pattern);
-    if (match && match[0] && match[0].length > 1000) {
-      return match[0].substring(0, MAX_SIZE);
+    
+    // Eğer URL'den ürün adı çıkarılamazsa, alan adını kullan
+    if (!productName) {
+      productName = `${domain} Ürünü`;
     }
+    
+    const product: Product = {
+      productName: productName,
+      price: "Zaman aşımı nedeniyle belirlenemedi",
+      rating: "",
+      businessName: domain,
+      description: "Yapay zeka analiz süresi aşıldı. URL ve sayfa başlığından ürün bilgileri çıkarıldı.",
+      reviewCount: "",
+      url: url,
+      imageUrl: ""
+    };
+    
+    console.log("Returning improved fallback product with name from URL");
+    return [product];
+  } catch (error) {
+    console.error("Error in fallback extraction:", error);
+    
+    // Herhangi bir hata durumunda basit yanıt
+    const product: Product = {
+      productName: "API zaman aşımı",
+      price: "",
+      rating: "",
+      businessName: domain,
+      description: "Yapay zeka yanıt vermedi, lütfen daha sonra tekrar deneyin.",
+      reviewCount: "",
+      url: url,
+      imageUrl: ""
+    };
+    
+    console.log("Returning simple fallback product due to error");
+    return [product];
   }
-  
-  // If all else fails, just take a portion from the middle
-  const middle = Math.floor(html.length / 2);
-  const start = Math.max(0, middle - (MAX_SIZE / 2));
-  return html.substring(start, start + MAX_SIZE);
 }
