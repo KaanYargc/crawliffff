@@ -7,11 +7,13 @@ const nextConfig: NextConfig = {
   },
   // API zaman aşımı süresini uzat (3 dakika)
   experimental: {
-    serverComponentsExternalPackages: ['puppeteer-real-browser', 'puppeteer-extra', 'puppeteer'],
+    // Remove deprecated property
     serverActions: {
       bodySizeLimit: '4mb',
     }
   },
+  // New location for serverExternalPackages (moved from experimental)
+  serverExternalPackages: ['puppeteer-real-browser', 'puppeteer-extra', 'puppeteer'],
   // API zaman aşımı süresi - 180 saniye (3 dakika)
   api: {
     responseLimit: '8mb',

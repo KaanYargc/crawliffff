@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,8 @@ import { Card, CardHeader, CardContent, CardDescription, CardTitle, CardFooter }
 import Link from 'next/link';
 import { toast } from 'sonner';
 
-export default function LoginPage() {
+// Component to handle search params retrieval
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/';
@@ -44,6 +45,52 @@ export default function LoginPage() {
   };
 
   return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="email" className="text-sm font-medium">
+          Email
+        </Label>
+        <Input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="ornek@email.com"
+          required
+          disabled={isLoading}
+          className="h-10"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="password" className="text-sm font-medium">
+          Şifre
+        </Label>
+        <Input
+          id="password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+          required
+          disabled={isLoading}
+          className="h-10"
+        />
+      </div>
+
+      <Button
+        type="submit"
+        disabled={isLoading}
+        className="w-full h-10 bg-zinc-900 text-white hover:bg-zinc-800"
+      >
+        {isLoading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
+      </Button>
+    </form>
+  );
+}
+
+export default function LoginPage() {
+  return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-gradient-to-b from-white to-gray-50/50 dark:from-background dark:to-background/50">
       <Link 
         href="/" 
@@ -63,47 +110,9 @@ export default function LoginPage() {
         </CardHeader>
         
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">
-                Email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="ornek@email.com"
-                required
-                disabled={isLoading}
-                className="h-10"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">
-                Şifre
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                disabled={isLoading}
-                className="h-10"
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-10 bg-zinc-900 text-white hover:bg-zinc-800"
-            >
-              {isLoading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
-            </Button>
-          </form>
+          <Suspense fallback={<div>Yükleniyor...</div>}>
+            <LoginForm />
+          </Suspense>
         </CardContent>
         
         <CardFooter className="flex flex-col space-y-4 text-center">
