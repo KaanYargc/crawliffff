@@ -2,7 +2,7 @@
 
 import React, { useState, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,11 +10,19 @@ import { Card, CardHeader, CardContent, CardDescription, CardTitle, CardFooter }
 import Link from 'next/link';
 import { toast } from 'sonner';
 
-// Component to handle search params retrieval
-function LoginForm() {
-  const router = useRouter();
+// This is a client component that safely uses useSearchParams inside Suspense
+const SearchParamsRetriever = ({ children }: { children: (callbackUrl: string) => React.ReactNode }) => {
+  // Dynamic import of useSearchParams to improve SSR compatibility
+  const { useSearchParams } = require('next/navigation');
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get('callbackUrl') || '/';
+  const callbackUrl = searchParams?.get('callbackUrl') || '/';
+  
+  return <>{children(callbackUrl)}</>;
+};
+
+// Component to handle login form
+function LoginForm({ callbackUrl }: { callbackUrl: string }) {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -89,6 +97,23 @@ function LoginForm() {
   );
 }
 
+// Loading fallback component with the same layout as the form
+const LoadingFallback = () => (
+  <div className="space-y-4">
+    <div className="space-y-2">
+      <div className="text-sm font-medium h-5 bg-gray-100 animate-pulse rounded w-1/4"></div>
+      <div className="h-10 bg-gray-100 animate-pulse rounded"></div>
+    </div>
+    
+    <div className="space-y-2">
+      <div className="text-sm font-medium h-5 bg-gray-100 animate-pulse rounded w-1/4"></div>
+      <div className="h-10 bg-gray-100 animate-pulse rounded"></div>
+    </div>
+    
+    <div className="h-10 bg-gray-100 animate-pulse rounded"></div>
+  </div>
+);
+
 export default function LoginPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-gradient-to-b from-white to-gray-50/50 dark:from-background dark:to-background/50">
@@ -110,8 +135,10 @@ export default function LoginPage() {
         </CardHeader>
         
         <CardContent>
-          <Suspense fallback={<div>Yükleniyor...</div>}>
-            <LoginForm />
+          <Suspense fallback={<LoadingFallback />}>
+            <SearchParamsRetriever>
+              {(callbackUrl) => <LoginForm callbackUrl={callbackUrl} />}
+            </SearchParamsRetriever>
           </Suspense>
         </CardContent>
         

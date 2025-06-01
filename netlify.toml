@@ -1,0 +1,71 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NEXT_PRIVATE_TARGET = "server"
+  NODE_VERSION = "20.11.1"
+  # Enable streaming responses in Next.js
+  NEXT_PRIVATE_PREBUNDLED_REACT = "1"
+
+# Optimize SSR pages
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+  
+# These redirects ensure that client-side navigation works correctly
+[[redirects]]
+  from = "/_next/static/*"
+  to = "/static/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/_next/image*"
+  to = "/.netlify/image-api*"
+  status = 200
+
+# This ensures that client-side routing works correctly
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  conditions = {Client {path = "/static/*"}}
+  force = false
+
+# Fallback for all routes to allow Next.js to handle them
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/next"
+  status = 200
+  force = false
+
+# Handle 404s
+[[redirects]]
+  from = "/*"
+  to = "/404"
+  status = 404
+
+# Increase build timeout for larger sites
+[build.processing]
+  skip_processing = false
+
+[build.processing.css]
+  bundle = true
+  minify = true
+
+[build.processing.js]
+  bundle = true
+  minify = true
+
+[build.processing.images]
+  compress = true
+
+# Cache control for static assets
+[[headers]]
+  for = "/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
