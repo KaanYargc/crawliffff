@@ -1120,20 +1120,71 @@ const BusinessFinder: React.FC = () => {
         throw new Error(data.error);
       }
 
-      if (!data.products || data.products.length === 0) {
+      // Yeni API yapısını kontrol et - geminiResponse kullanarak ürün bilgilerini göster
+      if (data.geminiResponse) {
+        console.log("Gemini yanıtı alındı:", data.geminiResponse);
+        
+        // Çoklu ürün desteği - products array'ini kontrol et
+        if (data.geminiResponse.products && Array.isArray(data.geminiResponse.products)) {
+          // Tüm ürünleri ProductData formatına dönüştür
+          const productList: ProductData[] = data.geminiResponse.products.map((product: any) => ({
+            productName: product.productName || "Ürün adı bulunamadı",
+            price: product.price || "",
+            rating: product.rating || "",
+            businessName: data.geminiResponse.businessName || getSiteName(url),
+            description: product.description || "",
+            imageUrl: product.imageUrl || "",
+            url: url,
+            reviewCount: product.reviewCount || "",
+            siteName: getSiteName(url)
+          }));
+          
+          // Ürün listesini güncelle
+          setProductData(productList);
+          setProductStatus(`${productList.length} ürün analiz edildi.`);
+          toast.success(`${productList.length} ürün başarıyla analiz edildi.`);
+        } 
+        // Eski format (tek ürün) için geriye dönük uyumluluk
+        else {
+          const product: ProductData = {
+            productName: data.geminiResponse.productName || "Ürün adı bulunamadı",
+            price: data.geminiResponse.price || "",
+            rating: data.geminiResponse.rating || "",
+            businessName: data.geminiResponse.businessName || getSiteName(url),
+            description: data.geminiResponse.description || "",
+            imageUrl: data.geminiResponse.imageUrl || "",
+            url: url,
+            reviewCount: data.geminiResponse.reviewCount || "",
+            siteName: getSiteName(url)
+          };
+          
+          // Ürün listesine ekle
+          const productList = [product];
+          setProductData(productList);
+          setProductStatus("Ürün analiz edildi.");
+          toast.success("Ürün başarıyla analiz edildi.");
+        }
+        
+        // İşlem tamamlandı, yükleme durumunu kapat
+        setIsProductLoading(false);
+        return;
+      }
+      
+      // Eski API yapısını kontrol et (geriye dönük uyumluluk için)
+      if ((!data.products || data.products.length === 0) && !data.geminiResponse) {
         setProductStatus("Bu URL'de ürün bulunamadı.");
         toast.warning("Bu URL'de ürün bulunamadı. Lütfen başka bir URL deneyin.");
         setIsProductLoading(false);
         return;
       }
 
-      // Process and set product data
+      // Eski API yapısı için: Process and set product data
       const siteName = getSiteName(url);
-      const productsWithSite = data.products.map((product: any) => ({
+      const productsWithSite = data.products?.map((product: any) => ({
         ...product,
         businessName: product.businessName || siteName,
         siteName: siteName
-      }));
+      })) || [];
       
       setProductData(productsWithSite);
       setProductStatus(`${productsWithSite.length} ürün analiz edildi.`);
@@ -1646,6 +1697,7 @@ const BusinessFinder: React.FC = () => {
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">İşletme</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Puan</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">İnceleme Sayısı</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Açıklama</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -1685,6 +1737,11 @@ const BusinessFinder: React.FC = () => {
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-500">
                               {product.reviewCount || "N/A"}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-500 max-w-[250px]">
+                              <div className="line-clamp-3 hover:line-clamp-none">
+                                {product.description || "Açıklama yok"}
+                              </div>
                             </td>
                           </tr>
                         ))}

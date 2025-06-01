@@ -7,6 +7,21 @@ import path from 'path';
 // Cache duration in milliseconds (1 hour)
 export const CACHE_TTL = 3600000;
 
+// Helper function to extract domain from URL
+export function extractDomainFromUrl(url: string): string {
+  try {
+    if (!url) return '';
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+    // Remove www. if present
+    return hostname.replace(/^www\./, '');
+  } catch (error) {
+    console.error('Error extracting domain from URL:', error);
+    // Return a fallback value or the original URL
+    return url.split('/')[2]?.replace(/^www\./, '') || '';
+  }
+}
+
 // Initialize SQLite database for caching
 const db = better_sqlite3(path.join(process.cwd(), 'data/crawlify.db'));
 

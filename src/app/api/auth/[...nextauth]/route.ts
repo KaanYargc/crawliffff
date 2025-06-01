@@ -56,19 +56,36 @@ const handler = NextAuth({
           // Fall through to Supabase auth if DB query fails
         }
 
+        // Check for similar email addresses to provide better error messages
+        try {
+          // Find similar emails in the database (simple check for now)
+          const similarUsers = await DB.all(
+            "SELECT email FROM users WHERE email LIKE ?", 
+            [`%${credentials.email.split('@')[0].substring(0, 5)}%@%`]
+          );
+          
+          if (similarUsers && similarUsers.length > 0) {
+            console.log('Found similar emails:', similarUsers.map(u => u.email));
+            throw new Error(`Kullanıcı bulunamadı. Belki ${similarUsers[0].email} e-postasını kullanmak istemiş olabilirsiniz?`);
+          }
+        } catch (similarError) {
+          console.error('Error checking for similar emails:', similarError);
+          // Continue with normal flow if this fails
+        }
+
         // Fallback to Supabase authentication
         const user = await findUserByEmail(credentials.email);
 
         if (!user) {
           console.log('User not found:', credentials.email);
-          return null;
+          throw new Error('Bu e-posta adresi ile kayıtlı kullanıcı bulunamadı. Lütfen e-posta adresinizi kontrol edin.');
         }
 
         const isPasswordValid = await validatePassword(user, credentials.password);
 
         if (!isPasswordValid) {
           console.log('Invalid password for user:', credentials.email);
-          return null;
+          throw new Error('Geçersiz şifre. Lütfen şifrenizi kontrol edin.');
         }
 
         // Log user details without sensitive data
@@ -193,7 +210,7 @@ const handler = NextAuth({
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-  debug: process.env.NODE_ENV === 'development',
+  debug: false, // Disable debug mode
   secret: process.env.NEXTAUTH_SECRET || 'crawlify-nextauth-secret',
 });
 
