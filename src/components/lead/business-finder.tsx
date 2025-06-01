@@ -1653,20 +1653,20 @@ const BusinessFinder: React.FC = () => {
                             </td>
                             <td className="px-4 py-2 text-sm font-medium text-gray-900 max-w-[200px] truncate">
                               <a href={product.url} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600">
-                                {product.productName}
+                                {product.productName || "Ürün adı bulunamadı"}
                               </a>
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-500">
-                              {product.price}
+                              {product.price || "Fiyat bilgisi yok"}
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-500 max-w-[150px] truncate">
-                              {product.businessName}
+                              {product.businessName || "İşletme bilgisi yok"}
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-500">
-                              {product.rating}
+                              {product.rating || "Puan bilgisi yok"}
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-500">
-                              {product.reviewCount || "N/A"}
+                              {product.reviewCount || "İnceleme bilgisi yok"}
                             </td>
                           </tr>
                         ))}
