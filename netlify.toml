@@ -28,7 +28,7 @@
   from = "/*"
   to = "/index.html"
   status = 200
-  conditions = {Client {path = "/static/*"}}
+  conditions = {client = {path = ["/static/*"]}}
   force = false
 
 # Fallback for all routes to allow Next.js to handle them
