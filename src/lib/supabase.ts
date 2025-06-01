@@ -1,119 +1,124 @@
 // src/lib/supabase.ts
 import { createClient } from '@supabase/supabase-js';
+import { hash } from 'bcryptjs';
 
-// Supabase istemcisini oluştur
+// Create Supabase client
 export const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
 
-// Servis rolü ile istemci oluştur (yetki gerektiren işlemler için)
+// Create admin client with service role
 export const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-// Kullanıcı tablosu tipleri
+// User table types
 export interface User {
   id: string;
   name: string;
   email: string;
   password: string;
   role: string;
+  package: string;
+  first_login: boolean;
+  package_start_date?: Date;
+  package_end_date?: Date | null;
   created_at?: string;
 }
 
-// Veritabanı şemasını başlat
+// Initialize database connection
 export async function initSupabase() {
   try {
-    // Kullanıcılar tablosunu oluştur (eğer yoksa)
-    const { error } = await supabaseAdmin.rpc('create_users_table_if_not_exists');
+    // Simple health check using raw query
+    const { error } = await supabaseAdmin.from('users').select('count').limit(0);
     
-    if (error && !error.message.includes('already exists')) {
-      console.error('Kullanıcılar tablosu oluşturulurken hata:', error);
-      throw error;
+    if (error && error.code !== '42P01') { // Ignore table not found error
+      console.error('Error connecting to Supabase:', error);
+      return false;
     }
-    
-    // Admin kullanıcısı var mı kontrol et
-    const { data: adminUser } = await supabaseAdmin
-      .from('users')
-      .select('id')
-      .eq('role', 'admin')
-      .single();
-    
-    // Admin kullanıcısı yoksa oluştur
-    if (!adminUser) {
-      const { error: adminError } = await supabaseAdmin.from('users').insert({
-        name: 'Admin',
-        email: 'admin@crawlify.com',
-        password: await hashPassword('admin123'), // Bu fonksiyon oluşturulacak
-        role: 'admin'
-      });
-      
-      if (adminError) {
-        console.error('Admin kullanıcısı oluşturulurken hata:', adminError);
-        throw adminError;
-      }
-      
-      console.log('Varsayılan admin kullanıcısı oluşturuldu');
-    }
-    
-    console.log('Supabase veritabanı başlatıldı');
+
+    console.log('Supabase connection verified');
     return true;
   } catch (error) {
-    console.error('Supabase veritabanı başlatılırken hata:', error);
+    console.error('Error initializing Supabase:', error);
     return false;
   }
 }
 
-// Kullanıcı işlemleri
+// User operations
 export async function findUserByEmail(email: string): Promise<User | undefined> {
-  const { data, error } = await supabaseAdmin
-    .from('users')
-    .select('*')
-    .eq('email', email)
-    .single();
-  
-  if (error) {
-    console.error('Kullanıcı aranırken hata:', error);
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (error) {
+      // Handle "no rows" case gracefully
+      if (error.code === 'PGRST116') {
+        return undefined;
+      }
+      console.error('Error finding user:', error);
+      return undefined;
+    }
+
+    return data as User;
+  } catch (error) {
+    console.error('Error in findUserByEmail:', error);
     return undefined;
   }
-  
-  return data as User;
 }
 
 export async function createUser(name: string, email: string, password: string): Promise<User | null> {
-  // Kullanıcı zaten var mı kontrol et
-  const existingUser = await findUserByEmail(email);
-  if (existingUser) {
+  try {
+    // Check if user exists
+    const existingUser = await findUserByEmail(email);
+    if (existingUser) {
+      return null;
+    }
+
+    // Hash password
+    const hashedPassword = await hash(password, 10);
+
+    // Create user
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .insert({
+        name,
+        email,
+        password: hashedPassword,
+        role: 'user',
+        package: 'free',
+        first_login: true
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating user:', error);
+      return null;
+    }
+
+    return data as User;
+  } catch (error) {
+    console.error('Error in createUser:', error);
     return null;
   }
-  
-  // Şifreyi hashle
-  const hashedPassword = await hashPassword(password);
-  
-  // Kullanıcıyı oluştur
-  const { data, error } = await supabaseAdmin.from('users').insert({
-    name,
-    email,
-    password: hashedPassword,
-    role: 'user'
-  }).select().single();
-  
-  if (error) {
-    console.error('Kullanıcı oluşturulurken hata:', error);
-    return null;
-  }
-  
-  return data as User;
 }
 
 export async function validatePassword(user: User, password: string): Promise<boolean> {
-  const { compare } = await import('bcrypt');
-  return await compare(password, user.password);
+  try {
+    const { compare } = await import('bcryptjs');
+    return await compare(password, user.password);
+  } catch (error) {
+    console.error('Error validating password:', error);
+    return false;
+  }
 }
 
 export async function hashPassword(password: string): Promise<string> {
-  const { hash } = await import('bcrypt');
   return await hash(password, 10);
 }

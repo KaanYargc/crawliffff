@@ -1,10 +1,7 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { compare } from 'bcryptjs';
+import { findUserByEmail, validatePassword } from '@/lib/supabase';
 import DB from '@/lib/db';
-
-// Initialize database
-DB.init();
 
 const handler = NextAuth({
   providers: [
@@ -19,23 +16,69 @@ const handler = NextAuth({
           throw new Error('Email ve şifre gerekli');
         }
 
-        const user = await DB.get(
-          "SELECT * FROM users WHERE email = ?",
-          [credentials.email]
-        );
+        // First try to get user from database directly, bypassing any caching
+        try {
+          // Initialize DB if needed
+          DB.init();
+          
+          // Get user directly from SQLite database
+          const dbUser = await DB.get(
+            'SELECT * FROM users WHERE email = ?', 
+            [credentials.email]
+          );
+          
+          if (dbUser) {
+            console.log('User found directly in DB:', {
+              id: dbUser.id,
+              email: dbUser.email,
+              role: dbUser.role,
+              package: dbUser.package,
+              first_login: dbUser.first_login === 1 ? true : false
+            });
+            
+            // Validate password
+            const isPasswordValid = await validatePassword(dbUser, credentials.password);
+            
+            if (isPasswordValid) {
+              return {
+                id: dbUser.id,
+                name: dbUser.name,
+                email: dbUser.email,
+                role: dbUser.role,
+                package: dbUser.package,
+                // Convert SQLite integer to boolean
+                first_login: dbUser.first_login === 1
+              };
+            }
+          }
+        } catch (dbError) {
+          console.error('Error querying database directly:', dbError);
+          // Fall through to Supabase auth if DB query fails
+        }
+
+        // Fallback to Supabase authentication
+        const user = await findUserByEmail(credentials.email);
 
         if (!user) {
-          throw new Error('Kullanıcı bulunamadı');
+          console.log('User not found:', credentials.email);
+          return null;
         }
 
-        const isPasswordValid = await compare(
-          credentials.password,
-          user.password
-        );
+        const isPasswordValid = await validatePassword(user, credentials.password);
 
         if (!isPasswordValid) {
-          throw new Error('Geçersiz şifre');
+          console.log('Invalid password for user:', credentials.email);
+          return null;
         }
+
+        // Log user details without sensitive data
+        console.log('User authenticated successfully:', {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          package: user.package,
+          first_login: user.first_login
+        });
 
         return {
           id: user.id,
@@ -49,22 +92,97 @@ const handler = NextAuth({
     })
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
+      console.log('JWT callback called with trigger:', trigger);
+      
       if (user) {
+        // Initial sign in - set token values from user
+        console.log('Setting initial JWT from user data:', { 
+          id: user.id, 
+          role: user.role, 
+          package: user.package, 
+          first_login: user.first_login
+        });
         token.role = user.role;
         token.id = user.id;
         token.package = user.package;
         token.first_login = user.first_login;
+      } else if (trigger === 'update' && session) {
+        // Session update via session.update()
+        console.log('Updating JWT from session:', session);
+        // Only update fields that are present in the update
+        if (session.user?.package !== undefined) {
+          token.package = session.user.package;
+          console.log('Updated token package to:', token.package);
+        }
+        
+        if (session.user?.first_login !== undefined) {
+          token.first_login = session.user.first_login;
+          console.log('Updated token first_login to:', token.first_login);
+        }
+      } else {
+        // On subsequent requests, refresh user data from database
+        try {
+          // Use the email in the token to get fresh user data
+          if (token.email) {
+            // Initialize DB if needed
+            DB.init();
+            
+            // Get latest user data
+            const dbUser = await DB.get(
+              'SELECT * FROM users WHERE email = ?', 
+              [token.email]
+            );
+            
+            if (dbUser) {
+              console.log('Refreshed user data from DB:', {
+                id: dbUser.id,
+                email: dbUser.email,
+                role: dbUser.role,
+                package: dbUser.package,
+                first_login: dbUser.first_login === 1 ? true : false
+              });
+              
+              // Update token with latest values
+              token.role = dbUser.role;
+              token.package = dbUser.package;
+              token.first_login = dbUser.first_login === 1 ? true : false;
+              
+              console.log('Updated token with fresh data from DB');
+            }
+          }
+        } catch (dbError) {
+          console.error('Error refreshing user data from DB:', dbError);
+          // Continue with existing token data if refresh fails
+        }
       }
+      
+      // Debugging the final token state
+      console.log('Final JWT token values:', {
+        id: token.id,
+        role: token.role,
+        package: token.package,
+        first_login: token.first_login
+      });
+      
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
+        console.log('Building session from token:', {
+          id: token.id,
+          role: token.role,
+          package: token.package,
+          first_login: token.first_login
+        });
+        
+        // Transfer values from token to session
         session.user.role = token.role as string;
         session.user.id = token.id as string;
         session.user.package = token.package as string;
         session.user.first_login = token.first_login as boolean;
       }
+      
       return session;
     }
   },
@@ -73,7 +191,9 @@ const handler = NextAuth({
   },
   session: {
     strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
+  debug: process.env.NODE_ENV === 'development',
   secret: process.env.NEXTAUTH_SECRET || 'crawlify-nextauth-secret',
 });
 

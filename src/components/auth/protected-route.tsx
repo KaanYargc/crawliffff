@@ -31,9 +31,11 @@ export default function ProtectedRoute({
       return;
     }
 
-    // İlk kez giriş yapan kullanıcıyı paket seçme sayfasına yönlendir
+    // Kullanıcının paket seçimi kontrolü
+    // İlk kez giriş yapan ve henüz paket seçmemiş kullanıcıyı paket seçme sayfasına yönlendir
     // Ancak zaten paket seçme sayfasındaysa yönlendirme yapma
-    if (isFirstLogin && pathname !== "/packages") {
+    const hasSelectedPackage = session?.user?.package && session.user.package !== '';
+    if (isFirstLogin && !hasSelectedPackage && pathname !== "/packages") {
       router.push("/packages");
       return;
     }
@@ -42,14 +44,14 @@ export default function ProtectedRoute({
     if (adminOnly && !isAdmin) {
       router.push("/");
     }
-  }, [isAuthenticated, isAdmin, adminOnly, isLoading, router, isFirstLogin, pathname]);
+  }, [isAuthenticated, isAdmin, adminOnly, isLoading, router, isFirstLogin, pathname, session]);
 
   // Yükleme sırasında veya yönlendirme durumunda loading göster
   if (
     isLoading ||
     (!isAuthenticated) ||
     (adminOnly && !isAdmin) ||
-    (isFirstLogin && pathname !== "/packages")
+    (isFirstLogin && !session?.user?.package && pathname !== "/packages")
   ) {
     return (
       <div className="flex min-h-screen items-center justify-center">

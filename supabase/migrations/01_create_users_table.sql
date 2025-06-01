@@ -1,6 +1,4 @@
--- Supabase SQL Editor'da çalıştırılacak SQL komutları
-
--- Kullanıcılar tablosunu oluştur
+-- Create users table if it doesn't exist
 CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -14,15 +12,10 @@ CREATE TABLE IF NOT EXISTS public.users (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
--- Yetkilendirme kuralları ekle
+-- Enable Row Level Security
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
--- Var olan politikaları kaldır
-DROP POLICY IF EXISTS "Admins can do anything" ON public.users;
-DROP POLICY IF EXISTS "Users can read own data" ON public.users;
-DROP POLICY IF EXISTS "Users can update own data" ON public.users;
-
--- Politika oluştur
+-- Create policies
 CREATE POLICY "Admins can do anything" ON public.users
   FOR ALL
   USING (role = 'admin')
@@ -30,22 +23,21 @@ CREATE POLICY "Admins can do anything" ON public.users
 
 CREATE POLICY "Users can read own data" ON public.users
   FOR SELECT
-  USING (id::text = auth.uid()::text OR role = 'admin');
+  USING (auth.uid()::text = id::text OR role = 'admin');
 
 CREATE POLICY "Users can update own data" ON public.users
   FOR UPDATE
-  USING (id::text = auth.uid()::text OR role = 'admin')
-  WITH CHECK (id::text = auth.uid()::text OR role = 'admin');
+  USING (auth.uid()::text = id::text OR role = 'admin')
+  WITH CHECK (auth.uid()::text = id::text OR role = 'admin');
 
--- Varsayılan admin kullanıcısını ekle
-INSERT INTO public.users (name, email, password, role, first_login, package)
+-- Insert default admin user if it doesn't exist
+INSERT INTO public.users (name, email, password, role, first_login)
 SELECT 
   'Admin',
   'admin@crawlify.com',
   crypt('admin123', gen_salt('bf')),
   'admin',
-  false,
-  'enterprise'
+  false
 WHERE NOT EXISTS (
-  SELECT 1 FROM public.users WHERE email = 'admin@crawlify.com'
+  SELECT 1 FROM public.users WHERE role = 'admin'
 );

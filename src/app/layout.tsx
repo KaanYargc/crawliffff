@@ -3,13 +3,16 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import AuthProvider from "@/components/auth/auth-provider";
-import Navbar from "@/components/auth/navbar";
 import DB from "@/lib/db";
+import { initSupabase } from "@/lib/supabase";
 
 // Initialize database on server side
 if (typeof window === 'undefined') {
   DB.init();
 }
+
+// Initialize Supabase when the app starts
+initSupabase().catch(console.error);
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,7 +41,6 @@ export default function RootLayout({
       >
         <AuthProvider>
           <div className="relative min-h-screen flex flex-col">
-            <Navbar />
             <main className="flex-1 pt-16">{children}</main>
             <Toaster />
           </div>

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { hash } from "bcryptjs";
-import DB from "@/lib/db";
+import { createUser } from "@/lib/supabase";
 
 export async function POST(req: Request) {
   try {
@@ -31,28 +30,15 @@ export async function POST(req: Request) {
       );
     }
 
-    // Email'in kullanımda olup olmadığını kontrol et
-    const existingUser = await DB.get(
-      "SELECT * FROM users WHERE email = ?",
-      [email]
-    );
+    // Kullanıcıyı oluştur
+    const newUser = await createUser(name, email, password);
 
-    if (existingUser) {
+    if (!newUser) {
       return new NextResponse(
         JSON.stringify({ error: "Email already in use" }),
         { status: 400 }
       );
     }
-
-    // Şifreyi hashle
-    const hashedPassword = await hash(password, 12);
-
-    // Yeni kullanıcıyı kaydet
-    await DB.run(
-      `INSERT INTO users (name, email, password, role, package, first_login, package_start_date) 
-       VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-      [name, email, hashedPassword, 'user', 'free', true]
-    );
 
     return new NextResponse(
       JSON.stringify({ message: "User registered successfully" }),
