@@ -15,7 +15,6 @@
   NETLIFY = "true"
   # Add Next.js 13+ specific settings
   NEXT_USE_NETLIFY_EDGE = "true"
-  NEXT_FORCE_EDGE_RUNTIME = "true"
 
 # Use the official Next.js plugin
 [[plugins]]
@@ -58,13 +57,6 @@
   from = "/*"
   to = "/.netlify/functions/nextjs"
   status = 200
-  force = false
-
-# Custom 404 handling - this should be the last redirect
-[[redirects]]
-  from = "/*"
-  to = "/404.html"
-  status = 404
 
 [functions]
   # Set a higher timeout for Next.js functions
