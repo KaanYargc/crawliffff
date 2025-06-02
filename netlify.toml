@@ -14,64 +14,52 @@
   # Flag to indicate we're in Netlify build environment
   NETLIFY = "true"
 
-# Optimize SSR pages
+# Use the official Next.js plugin
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-  
-# These redirects ensure that client-side navigation works correctly
+  [plugins.inputs]
+    # Enable ISR support
+    includeFiles = ".next/standalone/**"
+
+# The order of redirects is important!
+# First, handle static and image assets
 [[redirects]]
   from = "/_next/static/*"
-  to = "/static/:splat"
+  to = "/_next/static/:splat"
   status = 200
+  force = true
 
 [[redirects]]
   from = "/_next/image*"
-  to = "/.netlify/image-api*"
+  to = "/_next/image*"
   status = 200
+  force = true
 
-# This ensures that client-side routing works correctly
+[[redirects]]
+  from = "/_next/data/*"
+  to = "/_next/data/:splat"
+  status = 200
+  force = true
+
+# Then, handle dynamic routes through Next.js functions
 [[redirects]]
   from = "/*"
-  to = "/index.html"
+  to = "/.netlify/functions/nextjs"
   status = 200
-  conditions = {client = {path = ["/static/*"]}}
   force = false
 
-# Fallback for all routes to allow Next.js to handle them
-[[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/next"
-  status = 200
-  force = false
-
-# Handle 404s
-[[redirects]]
-  from = "/*"
-  to = "/404"
-  status = 404
-
-# Increase build timeout for larger sites
-[build.processing]
-  skip_processing = false
-
-[build.processing.css]
-  bundle = true
-  minify = true
-
-[build.processing.js]
-  bundle = true
-  minify = true
-
-[build.processing.images]
-  compress = true
+[functions]
+  # Set a higher timeout for Next.js functions
+  node_bundler = "esbuild"
+  external_node_modules = ["better-sqlite3"]
 
 # Cache control for static assets
 [[headers]]
-  for = "/static/*"
+  for = "/_next/static/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
 [[headers]]
-  for = "/_next/static/*"
+  for = "/static/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"

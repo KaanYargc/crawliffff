@@ -10,11 +10,14 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '4mb',
     }
   },
-  // New location for serverExternalPackages (moved from experimental)
+  // External packages that should not be bundled
   serverExternalPackages: ['puppeteer-real-browser', 'puppeteer-extra', 'puppeteer', 'better-sqlite3'],
   
   // Increased timeout for page generation
   staticPageGenerationTimeout: 180,
+  
+  // Optimize for Netlify deployment
+  distDir: '.next',
   
   // Simplify the webpack configuration
   webpack: (config, { isServer }) => {
@@ -30,7 +33,7 @@ const nextConfig: NextConfig = {
         'puppeteer-extra-plugin-adblocker',
         'clone-deep',
         'merge-deep',
-        'better-sqlite3', // Add better-sqlite3 as external to avoid compilation issues
+        'better-sqlite3',
       ];
     } else {
       // Client-side fallbacks
@@ -52,13 +55,12 @@ const nextConfig: NextConfig = {
 
     return config;
   },
-  // Skip type checking for faster builds during development
+  // Skip type checking for faster builds
   typescript: {
     ignoreBuildErrors: true,
   },
   
   // Add specific handling for the analyze-products API route
-  // This allows us to exclude it from the build process
   async headers() {
     return [
       {
@@ -73,8 +75,14 @@ const nextConfig: NextConfig = {
     ];
   },
   
-  // Exclude specific API routes from the build process
+  // Important for Netlify deployment - creates a standalone build
   output: 'standalone',
+  
+  // Handle trailing slashes consistently
+  trailingSlash: false,
+  
+  // Set this to true to generate a 404 page
+  generateEtags: true,
 }
 
 export default nextConfig;
