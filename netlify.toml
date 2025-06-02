@@ -7,6 +7,10 @@
   NODE_VERSION = "20.11.1"
   # Enable streaming responses in Next.js
   NEXT_PRIVATE_PREBUNDLED_REACT = "1"
+  # Include placeholder Supabase values for build time
+  NEXT_PUBLIC_SUPABASE_URL = "https://placeholder-during-build.supabase.co"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY = "placeholder-key-during-build"
+  SUPABASE_SERVICE_ROLE_KEY = "placeholder-role-key-during-build"
 
 # Optimize SSR pages
 [[plugins]]
