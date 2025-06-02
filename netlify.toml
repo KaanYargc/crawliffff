@@ -20,9 +20,6 @@
 # Use the official Next.js plugin
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-  [plugins.inputs]
-    # Enable ISR (Incremental Static Regeneration) support
-    enableISR = true
 
 # The order of redirects is important!
 # First, handle static and image assets
