@@ -1,10 +1,6 @@
 // route.ts - Ana API rotası
 import { NextRequest, NextResponse } from 'next/server';
 import { isAuthorized } from '@/lib/utils';
-import { fetchWebsiteContent } from './browser-simulator';
-import { extractProductsFromHtml, isValidProductData } from './product-extractor';
-import { bypassCloudflare, isCloudflareHtml, hasCloudfareCaptcha, validatePostCloudflareContent } from './cloudflare-handler';
-import { getSiteConfig, isSiteSupported, handleLieferando } from './site-handlers';
 import { extractDomainFromUrl } from './utils';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -16,6 +12,42 @@ const INITIAL_BACKOFF_MS = 2000;
 
 // Cache for storing scraped data
 const cache = new Map<string, { timestamp: number; products: any[] }>();
+
+// Dynamically import modules that may use better-sqlite3 to avoid build-time errors
+const getDynamicImports = async () => {
+  // Check if we're in a Node.js environment and not in build time
+  if (typeof process !== 'undefined' && 
+      process.versions && 
+      process.versions.node && 
+      !process.env.NETLIFY) {
+    try {
+      // Only import these at runtime, not during build
+      const browserSimulator = await import('./browser-simulator');
+      const productExtractor = await import('./product-extractor');
+      const cloudflareHandler = await import('./cloudflare-handler');
+      const siteHandlers = await import('./site-handlers');
+      
+      return {
+        fetchWebsiteContent: browserSimulator.fetchWebsiteContent,
+        extractProductsFromHtml: productExtractor.extractProductsFromHtml,
+        isValidProductData: productExtractor.isValidProductData,
+        bypassCloudflare: cloudflareHandler.bypassCloudflare,
+        isCloudflareHtml: cloudflareHandler.isCloudflareHtml,
+        hasCloudfareCaptcha: cloudflareHandler.hasCloudfareCaptcha,
+        validatePostCloudflareContent: cloudflareHandler.validatePostCloudflareContent,
+        getSiteConfig: siteHandlers.getSiteConfig,
+        isSiteSupported: siteHandlers.isSiteSupported,
+        handleLieferando: siteHandlers.handleLieferando
+      };
+    } catch (error) {
+      console.error('Error loading dynamic imports:', error);
+      return null;
+    }
+  }
+  
+  // Return null during build time or if imports fail
+  return null;
+};
 
 // Clean old cache entries
 function cleanOldCache() {
@@ -42,6 +74,19 @@ function cacheData(url: string, products: any[]) {
 
 async function fetchWithRetry(url: string, domain: string, attempt: number = 1): Promise<{ content: string; wasRetry?: boolean; usedRealBrowser?: boolean }> {
   try {
+    const dynamicImports = await getDynamicImports();
+    if (!dynamicImports) {
+      throw new Error('Dynamic imports failed to load');
+    }
+    
+    const { 
+      fetchWebsiteContent, 
+      bypassCloudflare, 
+      getSiteConfig,
+      hasCloudfareCaptcha,
+      isCloudflareHtml
+    } = dynamicImports;
+    
     const siteConfig = getSiteConfig(url);
     
     // For lieferando.de and other sites with known Cloudflare protection,
@@ -109,7 +154,7 @@ async function fetchWithRetry(url: string, domain: string, attempt: number = 1):
     
     // CAPTCHA sayfası olup olmadığına karar ver
     const isTooSmallContent = initialContent.length < 15000; // Tipik CAPTCHA sayfaları küçüktür
-    const hasCaptcha = hasCloudfareCaptcha(initialContent, domain);
+    const hasCaptcha = await hasCloudfareCaptcha(initialContent, domain);
     
     console.log(`[DEBUG] CAPTCHA Tespit Durumu: ${hasCaptcha ? '✅ CAPTCHA Tespit Edildi' : '❌ CAPTCHA Yok'}`);
     
@@ -142,7 +187,9 @@ async function fetchWithRetry(url: string, domain: string, attempt: number = 1):
     
     // Try to bypass with real browser (but not if we already tried manual solving for lieferando.de)
     if (domain !== 'lieferando.de') {
-      const { content } = await fetchWithRealBrowser(url);
+      // We need to use fetchWebsiteContent here instead of directly calling fetchWithRealBrowser
+      // since fetchWithRealBrowser is not part of our dynamic imports
+      const { content } = await fetchWebsiteContent(url);
       
       if (content && content.length > 0) {
         console.log(`🌐 ${domain} sitesinden gerçek tarayıcı ile içerik alındı. Boyut: ${content.length} byte`);
@@ -160,57 +207,6 @@ async function fetchWithRetry(url: string, domain: string, attempt: number = 1):
       return fetchWithRetry(url, domain, attempt + 1);
     }
     throw error;
-  }
-}
-
-// HTML içeriğinden sadece body kısmını çıkaran yardımcı fonksiyon
-function extractBodyContent(html: string): string {
-  try {
-    // JSDOM veya cheerio gibi bir DOM parser kullanabiliriz, ama bu durumda
-    // regex daha hızlı ve basit bir çözüm olabilir
-    
-    // Body tag'ı içeriğini çıkar
-    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-    
-    if (bodyMatch && bodyMatch[1]) {
-      let bodyContent = bodyMatch[1].trim();
-      
-      // JavaScript kodlarını kaldır (<script> tag'lerini temizle)
-      bodyContent = bodyContent.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-      
-      // Style taglerini de temizle
-      bodyContent = bodyContent.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
-      
-      // Tam body içeriğini konsola yazdır
-      console.log("==== CLEANED BODY CONTENT (FULL) ====");
-      console.log(bodyContent);
-      console.log("==== END OF FULL BODY CONTENT ====");
-      
-      console.log(`Body content extracted successfully. Original length: ${html.length}, Body-only length: ${bodyContent.length}`);
-      return bodyContent;
-    }
-    
-    // Eğer body tag'ı bulunamazsa, tüm HTML'i temizlemeye çalış
-    console.log("Body tag'ı bulunamadı, tüm HTML içeriğini temizlemeye çalışıyorum");
-    
-    // JavaScript ve style kodlarını kaldır
-    let cleanedHtml = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    cleanedHtml = cleanedHtml.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
-    
-    // Diğer potansiyel sorunlu tag'leri de temizleyelim
-    cleanedHtml = cleanedHtml.replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '');
-    cleanedHtml = cleanedHtml.replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, '');
-    
-    // Tam temizlenmiş içeriği konsola yazdır
-    console.log("==== CLEANED HTML CONTENT (FULL) ====");
-    console.log(cleanedHtml);
-    console.log("==== END OF FULL CLEANED HTML CONTENT ====");
-    
-    console.log(`Cleaned HTML content (no body tag found). Original length: ${html.length}, Cleaned length: ${cleanedHtml.length}`);
-    return cleanedHtml;
-  } catch (error) {
-    console.error("Body içeriği çıkarma hatası:", error);
-    return html;
   }
 }
 
@@ -373,8 +369,54 @@ async function analyzeContentWithGemini(content: string, url: string): Promise<a
   }
 }
 
+// HTML içeriğinden sadece body kısmını çıkaran yardımcı fonksiyon
+function extractBodyContent(html: string): string {
+  try {
+    // Body tag'ı içeriğini çıkar
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    
+    if (bodyMatch && bodyMatch[1]) {
+      let bodyContent = bodyMatch[1].trim();
+      
+      // JavaScript kodlarını kaldır (<script> tag'lerini temizle)
+      bodyContent = bodyContent.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+      
+      // Style taglerini de temizle
+      bodyContent = bodyContent.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+      
+      console.log(`Body content extracted successfully. Original length: ${html.length}, Body-only length: ${bodyContent.length}`);
+      return bodyContent;
+    }
+    
+    // Eğer body tag'ı bulunamazsa, tüm HTML'i temizlemeye çalış
+    console.log("Body tag'ı bulunamadı, tüm HTML içeriğini temizlemeye çalışıyorum");
+    
+    // JavaScript ve style kodlarını kaldır
+    let cleanedHtml = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    cleanedHtml = cleanedHtml.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+    
+    // Diğer potansiyel sorunlu tag'leri de temizleyelim
+    cleanedHtml = cleanedHtml.replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '');
+    cleanedHtml = cleanedHtml.replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, '');
+    
+    console.log(`Cleaned HTML content (no body tag found). Original length: ${html.length}, Cleaned length: ${cleanedHtml.length}`);
+    return cleanedHtml;
+  } catch (error) {
+    console.error("Body içeriği çıkarma hatası:", error);
+    return html;
+  }
+}
+
 // Fetch product data from a URL and analyze it with Gemini
 export async function POST(req: NextRequest) {
+  // Check if we're in a build environment (Netlify) and return a placeholder response
+  // This prevents better-sqlite3 from being loaded during build
+  if (process.env.NETLIFY) {
+    return NextResponse.json({
+      message: "This API endpoint is not available during build time. It will be available after deployment."
+    }, { status: 200 });
+  }
+
   // Clean old cache entries periodically
   cleanOldCache();
 
@@ -387,6 +429,22 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Load dynamic imports
+    const dynamicImports = await getDynamicImports();
+    if (!dynamicImports) {
+      return NextResponse.json({
+        error: 'API dependencies could not be loaded',
+        message: 'The server encountered an error loading required modules.'
+      }, { status: 500 });
+    }
+
+    const {
+      fetchWebsiteContent,
+      bypassCloudflare,
+      getSiteConfig,
+      hasCloudfareCaptcha
+    } = dynamicImports;
+
     const { url } = await req.json();
     if (!url) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });

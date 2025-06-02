@@ -14,10 +14,6 @@
   # Flag to indicate we're in Netlify build environment
   NETLIFY = "true"
 
-# Pre-build step to handle native dependencies
-[build.lifecycle]
-  onPreBuild = "npm rebuild better-sqlite3 --build-from-source"
-
 # Optimize SSR pages
 [[plugins]]
   package = "@netlify/plugin-nextjs"

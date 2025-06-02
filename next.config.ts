@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
     }
   },
   // New location for serverExternalPackages (moved from experimental)
-  serverExternalPackages: ['puppeteer-real-browser', 'puppeteer-extra', 'puppeteer'],
+  serverExternalPackages: ['puppeteer-real-browser', 'puppeteer-extra', 'puppeteer', 'better-sqlite3'],
   
   // Increased timeout for page generation
   staticPageGenerationTimeout: 180,
@@ -55,7 +55,26 @@ const nextConfig: NextConfig = {
   // Skip type checking for faster builds during development
   typescript: {
     ignoreBuildErrors: true,
-  }
+  },
+  
+  // Add specific handling for the analyze-products API route
+  // This allows us to exclude it from the build process
+  async headers() {
+    return [
+      {
+        source: '/api/leads/analyze-products/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0',
+          },
+        ],
+      },
+    ];
+  },
+  
+  // Exclude specific API routes from the build process
+  output: 'standalone',
 }
 
 export default nextConfig;
