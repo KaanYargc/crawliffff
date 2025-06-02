@@ -78,11 +78,23 @@ const nextConfig: NextConfig = {
   // Important for Netlify deployment - creates a standalone build
   output: 'standalone',
   
-  // Handle trailing slashes consistently
+  // Handle trailing slashes consistently - Netlify prefers false
   trailingSlash: false,
   
   // Set this to true to generate a 404 page
   generateEtags: true,
+  
+  // Optimize images
+  images: {
+    domains: ['*'],
+    unoptimized: true, // Netlify has its own image optimization
+  },
+  
+  // Improved error handling
+  onDemandEntries: {
+    maxInactiveAge: 60 * 60 * 1000, // 1 hour
+    pagesBufferLength: 5,
+  },
 }
 
 export default nextConfig;

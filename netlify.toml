@@ -13,10 +13,16 @@
   SUPABASE_SERVICE_ROLE_KEY = "placeholder-role-key-during-build"
   # Flag to indicate we're in Netlify build environment
   NETLIFY = "true"
+  # Add Next.js 13+ specific settings
+  NEXT_USE_NETLIFY_EDGE = "true"
+  NEXT_FORCE_EDGE_RUNTIME = "true"
 
 # Use the official Next.js plugin
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+  [plugins.inputs]
+    # Enable ISR (Incremental Static Regeneration) support
+    enableISR = true
 
 # The order of redirects is important!
 # First, handle static and image assets
@@ -38,10 +44,16 @@
   status = 200
   force = true
 
-# Add public file handling
+# Handle public assets
 [[redirects]]
   from = "/public/*"
-  to = "/public/:splat"
+  to = "/:splat"
+  status = 200
+
+# Special redirect for favicon and other root files
+[[redirects]]
+  from = "/favicon.ico"
+  to = "/favicon.ico"
   status = 200
 
 # Then, handle dynamic routes through Next.js functions
