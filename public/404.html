@@ -4,9 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>404 - Sayfa Bulunamadı | Crawlify</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <style>
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -20,11 +21,23 @@
     .container {
       max-width: 600px;
       padding: 0 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .logo {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #6366f1;
+      margin-bottom: 2rem;
     }
     h1 {
-      font-size: 3.75rem;
+      font-size: 6rem;
       font-weight: 700;
-      margin-bottom: 0.5rem;
+      margin: 0;
+      line-height: 1;
+      color: #111827;
     }
     h2 {
       font-size: 1.5rem;
@@ -35,19 +48,21 @@
     p {
       margin-top: 1rem;
       color: #6b7280;
-      max-width: 32rem;
+      max-width: 24rem;
       margin-left: auto;
       margin-right: auto;
     }
     .btn {
       display: inline-block;
       margin-top: 2rem;
-      padding: 0.5rem 1rem;
+      padding: 0.75rem 1.5rem;
       background-color: #18181b;
       color: white;
       text-decoration: none;
-      border-radius: 0.375rem;
+      border-radius: 0.5rem;
       font-weight: 500;
+      transition: background-color 0.2s;
+      font-size: 0.875rem;
     }
     .btn:hover {
       background-color: #27272a;
@@ -56,6 +71,7 @@
 </head>
 <body>
   <div class="container">
+    <div class="logo">Crawlify</div>
     <h1>404</h1>
     <h2>Sayfa Bulunamadı</h2>
     <p>

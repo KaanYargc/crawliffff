@@ -18,12 +18,6 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Add a special not found page handler
-[[redirects]]
-  from = "/404"
-  to = "/404.html"
-  status = 404
-
 # The order of redirects is important!
 # First, handle static and image assets
 [[redirects]]
@@ -55,6 +49,13 @@
   from = "/*"
   to = "/.netlify/functions/nextjs"
   status = 200
+  force = false
+
+# Custom 404 handling - this should be the last redirect
+[[redirects]]
+  from = "/*"
+  to = "/404.html"
+  status = 404
 
 [functions]
   # Set a higher timeout for Next.js functions
