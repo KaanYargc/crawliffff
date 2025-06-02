@@ -17,9 +17,6 @@
 # Use the official Next.js plugin
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-  [plugins.inputs]
-    # Enable ISR support
-    includeFiles = ".next/standalone/**"
 
 # The order of redirects is important!
 # First, handle static and image assets
