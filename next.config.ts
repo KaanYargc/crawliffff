@@ -5,25 +5,17 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // API zaman aşımı süresini uzat (3 dakika)
   experimental: {
-    // Remove deprecated property
     serverActions: {
       bodySizeLimit: '4mb',
     }
   },
   // New location for serverExternalPackages (moved from experimental)
   serverExternalPackages: ['puppeteer-real-browser', 'puppeteer-extra', 'puppeteer'],
-  // API zaman aşımı süresi - 180 saniye (3 dakika)
-  api: {
-    responseLimit: '8mb',
-    bodyParser: {
-      sizeLimit: '4mb',
-    },
-    externalResolver: true,
-  },
-  // Sayfanın yanıt bekleme süresini uzat
+  
+  // Increased timeout for page generation
   staticPageGenerationTimeout: 180,
+  
   // Simplify the webpack configuration
   webpack: (config, { isServer }) => {
     // Only apply these changes on the server side
@@ -38,6 +30,7 @@ const nextConfig: NextConfig = {
         'puppeteer-extra-plugin-adblocker',
         'clone-deep',
         'merge-deep',
+        'better-sqlite3', // Add better-sqlite3 as external to avoid compilation issues
       ];
     } else {
       // Client-side fallbacks
@@ -52,6 +45,8 @@ const nextConfig: NextConfig = {
         os: false,
         crypto: false,
         util: false,
+        sqlite3: false,
+        'better-sqlite3': false,
       };
     }
 
