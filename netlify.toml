@@ -1,5 +1,5 @@
 [build]
-  command = "npm run build"
+  command = "chmod +x build-helper.sh && ./build-helper.sh && npm run build && chmod +x post-build.sh && ./post-build.sh"
   publish = ".next"
 
 [build.environment]
