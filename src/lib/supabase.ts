@@ -5,31 +5,133 @@ import { hash } from 'bcryptjs';
 // Check if we're in a browser environment
 const isBrowser = typeof window !== 'undefined';
 
+// Check if we're in the Netlify build environment
+const isNetlifyBuild = process.env.NETLIFY === 'true' && !isBrowser;
+
+// Function to create a complete mock Supabase client
+const createMockClient = () => {
+  console.log('Creating mock Supabase client for Netlify build');
+  
+  // Create mock methods that chain properly
+  const createChainable = () => {
+    const chainMethods = [
+      'select', 'insert', 'update', 'delete', 'upsert',
+      'eq', 'neq', 'gt', 'lt', 'gte', 'lte',
+      'like', 'ilike', 'is', 'in', 'contains', 'containedBy',
+      'rangeLt', 'rangeGt', 'rangeGte', 'rangeLte',
+      'textSearch', 'filter', 'match', 'not',
+      'or', 'and',
+      'limit', 'order', 'range',
+      'single', 'maybeSingle',
+      'csv', 'count'
+    ];
+    
+    // Create a chainable object with all methods returning itself
+    const chainable: any = {};
+    
+    // Add all methods to the chainable object
+    chainMethods.forEach(method => {
+      chainable[method] = (..._args: any[]) => chainable;
+    });
+    
+    // Add final resolution methods
+    chainable.then = (callback: Function) => {
+      // Return mock data
+      if (callback) {
+        callback({ data: [], error: null });
+      }
+      return Promise.resolve({ data: [], error: null });
+    };
+    
+    // Add direct execution that returns mock response
+    chainable.execute = () => Promise.resolve({ data: [], error: null });
+    
+    return chainable;
+  };
+  
+  // Create the mock client with comprehensive mocking
+  return {
+    from: () => createChainable(),
+    rpc: () => Promise.resolve({ data: [], error: null }),
+    auth: {
+      signIn: () => Promise.resolve({ user: null, session: null, error: null }),
+      signUp: () => Promise.resolve({ user: null, session: null, error: null }),
+      signOut: () => Promise.resolve({ error: null }),
+      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      getSessionFromUrl: () => Promise.resolve({ data: { session: null }, error: null }),
+      setSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      refreshSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      updateUser: () => Promise.resolve({ data: { user: null }, error: null })
+    },
+    storage: {
+      from: () => ({
+        upload: () => Promise.resolve({ data: null, error: null }),
+        download: () => Promise.resolve({ data: null, error: null }),
+        list: () => Promise.resolve({ data: [], error: null }),
+        remove: () => Promise.resolve({ data: null, error: null }),
+        getPublicUrl: () => ({ data: { publicUrl: '' } })
+      })
+    },
+    // Override fetch completely to prevent any network requests
+    fetch: () => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ data: [] }),
+      text: () => Promise.resolve(''),
+      blob: () => Promise.resolve(new Blob()),
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+      formData: () => Promise.resolve(new FormData()),
+      headers: new Headers(),
+      status: 200,
+      statusText: 'OK',
+      type: 'basic',
+      url: '',
+      clone: () => ({} as Response)
+    } as Response)
+  } as any;
+};
+
 // Function to safely create Supabase client
 const createSafeClient = (url: string | undefined, key: string | undefined) => {
-  // If URL or key is missing and we're in a server environment during build
-  if ((!url || !key) && !isBrowser && process.env.NODE_ENV === 'production') {
-    // Return a mock client for build time
-    return {
-      from: () => ({
-        select: () => ({ data: null, error: null }),
-        insert: () => ({ data: null, error: null }),
-        eq: () => ({ data: null, error: null }),
-        single: () => ({ data: null, error: null }),
-        limit: () => ({ data: null, error: null })
-      }),
-      auth: {
-        signIn: () => Promise.resolve({ user: null, error: null }),
-        signOut: () => Promise.resolve({ error: null })
-      }
-    } as any;
+  // If we're in Netlify build environment, always return a mock client
+  if (isNetlifyBuild) {
+    return createMockClient();
   }
   
-  // Regular client creation
-  return createClient(
-    url || 'https://placeholder-during-build.supabase.co',
-    key || 'placeholder-key-during-build'
-  );
+  // Regular client creation with validation
+  if (!url || !key) {
+    console.warn('Supabase URL or key is missing, using placeholders');
+  }
+  
+  try {
+    return createClient(
+      url || 'https://placeholder-during-build.supabase.co',
+      key || 'placeholder-key-during-build',
+      {
+        // Add global fetch error handling for build environment
+        global: {
+          fetch: (...args) => {
+            // If during build and not explicitly using a mock, log and return mock
+            if (isNetlifyBuild) {
+              console.log('Intercepted Supabase fetch during build - returning mock response');
+              return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve({ data: [] }),
+                status: 200
+              } as Response);
+            }
+            // Otherwise use normal fetch
+            return fetch(...args);
+          }
+        }
+      }
+    );
+  } catch (error) {
+    console.error('Error creating Supabase client:', error);
+    // Always return a mock client if creation fails
+    return createMockClient();
+  }
 };
 
 // Create Supabase client
@@ -61,10 +163,9 @@ export interface User {
 // Initialize database connection
 export async function initSupabase() {
   try {
-    // Skip initialization during build time
-    if (process.env.NODE_ENV === 'production' && !isBrowser && 
-        (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)) {
-      console.log('Skipping Supabase initialization during build');
+    // Always skip real initialization during Netlify build
+    if (isNetlifyBuild) {
+      console.log('Skipping database initialization during build');
       return true;
     }
     
@@ -81,7 +182,7 @@ export async function initSupabase() {
   } catch (error) {
     console.error('Error initializing Supabase:', error);
     // Don't fail during build
-    if (process.env.NODE_ENV === 'production' && !isBrowser) {
+    if (isNetlifyBuild) {
       console.log('Continuing build despite Supabase error');
       return true;
     }
@@ -92,6 +193,11 @@ export async function initSupabase() {
 // User operations
 export async function findUserByEmail(email: string): Promise<User | undefined> {
   try {
+    // During Netlify build, return mock data
+    if (isNetlifyBuild) {
+      return undefined;
+    }
+    
     const { data, error } = await supabaseAdmin
       .from('users')
       .select('*')
