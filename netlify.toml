@@ -18,6 +18,12 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Add a special not found page handler
+[[redirects]]
+  from = "/404"
+  to = "/404.html"
+  status = 404
+
 # The order of redirects is important!
 # First, handle static and image assets
 [[redirects]]
@@ -28,7 +34,7 @@
 
 [[redirects]]
   from = "/_next/image*"
-  to = "/_next/image*"
+  to = "/_next/image:splat"
   status = 200
   force = true
 
@@ -38,18 +44,24 @@
   status = 200
   force = true
 
+# Add public file handling
+[[redirects]]
+  from = "/public/*"
+  to = "/public/:splat"
+  status = 200
+
 # Then, handle dynamic routes through Next.js functions
 [[redirects]]
   from = "/*"
   to = "/.netlify/functions/nextjs"
   status = 200
-  force = false
 
 [functions]
   # Set a higher timeout for Next.js functions
   node_bundler = "esbuild"
   external_node_modules = ["better-sqlite3"]
-
+  included_files = ["!node_modules/.pnpm/better-sqlite3*/node_modules/better-sqlite3/build/Release/better_sqlite3.node"]
+  
 # Cache control for static assets
 [[headers]]
   for = "/_next/static/*"
