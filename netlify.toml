@@ -4,7 +4,7 @@
 
 [build.environment]
   NEXT_PRIVATE_TARGET = "server"
-  NODE_VERSION = "20.11.1"  # Updated to Node.js 20 for Next.js compatibility
+  NODE_VERSION = "18.20.8"  # Updated to match server's Node.js version
   # Enable streaming responses in Next.js
   NEXT_PRIVATE_PREBUNDLED_REACT = "1"
   # Include placeholder Supabase values for build time
